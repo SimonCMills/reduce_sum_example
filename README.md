@@ -18,19 +18,19 @@ There is:
 
 1.  A brief description of the model and the data structure
 2.  Fitting this model using `reduce_sum`
-3.  A comparison of speedups with increasing \#cores
+3.  A comparison of speedups with increasing number of threads
 
 They are referred to at various points throughout, but see also:
 
-  - The `reduce_sum` documentation
+  - The `reduce_sum` documentation:
     <https://mc-stan.org/docs/2_23/stan-users-guide/reduce-sum.html>
 
   - [The 1D worked example (logistic
     regression)](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html),
-    which has details that aren’t included here.
+    which has details that aren’t included here
 
   - <https://jsocolar.github.io/occupancyModels/> as an
-    introduction/explanation to the model in Stan.
+    introduction/explanation to the model in Stan
 
 # (Brief) model description
 
@@ -125,13 +125,13 @@ species):
 
 <div class="figure" style="text-align: center">
 
-<img src="README_files/figure-gfm/figs-1.png" alt="Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"  />
+<img src="README_files/figure-gfm/figs-1.png" alt="**Figure 1:** Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"  />
 
 <p class="caption">
 
-Nine example species taken from the full simulation. Solid line
-indicates the underlying occupancy relationship, while the dashed line
-indicates the probability of detection, accounting for the species’
+**Figure 1:** Nine example species taken from the full simulation. Solid
+line indicates the underlying occupancy relationship, while the dashed
+line indicates the probability of detection, accounting for the species’
 detectability. As this depends both on the species’ detectibility and
 also a visit-level covariate (time of day), the detectibility is not a
 constant offset, but rather varies depending on time of day (which
@@ -164,12 +164,12 @@ head(det_sim_wide)
 
 ``` 
   i k 1 2 3 4
-1 1 1 0 0 0 0
-2 1 2 0 1 0 1
-3 1 3 0 0 1 0
-4 1 4 0 0 1 1
+1 1 1 1 1 0 0
+2 1 2 0 1 0 0
+3 1 3 0 0 0 0
+4 1 4 0 1 1 0
 5 1 5 0 0 0 0
-6 1 6 1 0 1 0
+6 1 6 0 0 0 1
 ```
 
 We have two columns that identify the species:point combination,
@@ -187,20 +187,20 @@ head(time_sim_wide)
 ```
 
 ``` 
-  i k         1          2          3          4
-1 1 1 0.4160341 0.48836341 0.87451355 0.20523981
-2 1 2 0.5419837 0.06325611 0.79788525 0.01721047
-3 1 3 0.8530399 0.85190901 0.08803679 0.26474531
-4 1 4 0.6889039 0.06755551 0.54969955 0.18914744
-5 1 5 0.5868925 0.05478410 0.38027458 0.65522361
-6 1 6 0.4747529 0.33567020 0.28825384 0.67986878
+  i k         1          2         3         4
+1 1 1 0.1735594 0.91190551 0.7294002 0.3744485
+2 1 2 0.1763252 0.01127935 0.9397493 0.5135653
+3 1 3 0.3302782 0.95676857 0.9206677 0.5524363
+4 1 4 0.5800233 0.69096319 0.6014498 0.3166696
+5 1 5 0.9599382 0.45958304 0.5889978 0.3939340
+6 1 6 0.3701675 0.55556399 0.4113235 0.7095843
 ```
 
 ``` r
 head(env_var)
 ```
 
-    [1]  0.4610402  0.4429136 -1.0210129  0.5213548 -0.3779416 -0.2250406
+    [1]  0.9665972  0.0883871  0.1070767 -0.2684812  1.6261510  0.4312677
 
 Finally, an environmental variable, that just varies between points.
 
@@ -405,19 +405,53 @@ function: you could simplify it by doing more computation outside
 objects, but then you would be shifting more of the computation
 *outside* of the bit that will be run in parallel. As the
 parallelisation speedup would take a hit from doing this, it’s better to
-do it this way, despite the unwieldiness of the ensuing
-function.
+do it this way, despite the unwieldiness of the ensuing function.
+
+When compiling the model, we need to specify that it is threaded
+(cpp\_options), and then specify the threads\_per\_chain at the sampling
+step. The model is run with `cmdstanr` (at some point I presume
+multi-threading will be rolled out to `rstan` as well).
+
+``` r
+library(cmdstanr)
+# data
+stan_data <- list(n_tot = nrow(det_sim_wide), 
+                  n_visit = 4, 
+                  n_species = length(unique(det_sim_wide$k)), 
+                  n_point = length(unique(det_sim_wide$i)), 
+                  id_sp = det_sim_wide$k, 
+                  id_pt = det_sim_wide$i, 
+                  det = det_sim_wide[,3:6],
+                  vis_cov = time_sim_wide[,3:6],
+                  Q = rowSums(det_sim_wide[,3:6]), 
+                  env_var = env_var, 
+                  grainsize = 1)
+
+
+## Run mod ----
+library(cmdstanr)
+mod <- cmdstan_model("occupancy_example_redsum.stan", 
+                     cpp_options = list(stan_threads = T))
+
+samps <- mod$sample(data = stan_data, 
+                    chains = 1, 
+                    threads_per_chain = 8, 
+                    iter_warmup = 1000, 
+                    iter_sampling = 1000)
+print(samps$time())
+```
 
 # Timings
 
 <div class="figure" style="text-align: center">
 
-<img src="README_files/figure-gfm/fig2-1.png" alt="Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "  />
+<img src="README_files/figure-gfm/fig2-1.png" alt="**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "  />
 
 <p class="caption">
 
-Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50
-species, 50 sites, and 4 visits (i.e. 10,000 observations in total).
+**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated
+dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000
+observations in total).
 
 </p>
 

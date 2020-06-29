@@ -12,15 +12,15 @@ There is:
 
 1. A brief description of the model and the data structure
 2. Fitting this model using ```reduce_sum```
-3. A comparison of speedups with increasing #cores
+3. A comparison of speedups with increasing number of threads
 
 They are referred to at various points throughout, but see also: 
 
-- The ```reduce_sum``` documentation https://mc-stan.org/docs/2_23/stan-users-guide/reduce-sum.html
+- The ```reduce_sum``` documentation: https://mc-stan.org/docs/2_23/stan-users-guide/reduce-sum.html
 
-- [The 1D worked example (logistic regression)](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html), which has details that aren't included here. 
+- [The 1D worked example (logistic regression)](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html), which has details that aren't included here 
 
-- [https://jsocolar.github.io/occupancyModels/](https://jsocolar.github.io/occupancyModels/) as an introduction/explanation to the model in Stan. 
+- [https://jsocolar.github.io/occupancyModels/](https://jsocolar.github.io/occupancyModels/) as an introduction/explanation to the model in Stan 
 
 # (Brief) model description
 A model familiar to many ecologists is the occupancy model. They come in a lot of flavours, but, very broadly, these models are typically attempting to relate binary presence/absence to characteristics of the environment and/or species, usually using data collected from a number of different spatial locations. 
@@ -53,7 +53,7 @@ source("simulate_data.R")
 For the timings, I'll generate 50 species across 50 sites and 4 visits (i.e. 10,000 observations in total). 
 
 Visually, the model look something like this (for nine example species):
-```{r figs, echo=F, fig.align = "center", fig.cap = "Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"}
+```{r figs, echo=F, fig.align = "center", fig.cap = "**Figure 1:** Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"}
 # plot
 df_sim_eg <- expand.grid(i = 1:n_site, 
                          j = 1:n_visit, 
@@ -114,9 +114,40 @@ cat(readLines('occupancy_example_redsum.stan'), sep = '\n')
 
 This is largely a repetition of the previous stan model, the only difference is that the model has been shifted into the ```parallel_sum``` function block. Note that a lot of stuff has to get passed to this function: you could simplify it by doing more computation outside (e.g. transforming some parameters) and passing a reduced set of objects, but then you would be shifting more of the computation *outside* of the bit that will be run in parallel. As the parallelisation speedup would take a hit from doing this, it's better to do it this way, despite the unwieldiness of the ensuing function. 
 
+When compiling the model, we need to specify that it is threaded (cpp_options), and then specify the threads_per_chain at the sampling step. The model is run with ```cmdstanr``` (at some point I presume multi-threading will be rolled out to ```rstan``` as well).  
+```{r, eval=F}
+library(cmdstanr)
+# data
+stan_data <- list(n_tot = nrow(det_sim_wide), 
+                  n_visit = 4, 
+                  n_species = length(unique(det_sim_wide$k)), 
+                  n_point = length(unique(det_sim_wide$i)), 
+                  id_sp = det_sim_wide$k, 
+                  id_pt = det_sim_wide$i, 
+                  det = det_sim_wide[,3:6],
+                  vis_cov = time_sim_wide[,3:6],
+                  Q = rowSums(det_sim_wide[,3:6]), 
+                  env_var = env_var, 
+                  grainsize = 1)
+
+
+## Run mod ----
+library(cmdstanr)
+mod <- cmdstan_model("occupancy_example_redsum.stan", 
+                     cpp_options = list(stan_threads = T))
+
+samps <- mod$sample(data = stan_data, 
+                    chains = 1, 
+                    threads_per_chain = 8, 
+                    iter_warmup = 1000, 
+                    iter_sampling = 1000)
+print(samps$time())
+
+```
+
 # Timings 
 
-```{r fig2, echo=F, fig.align = "center", fig.cap = "Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "}
+```{r fig2, echo=F, fig.align = "center", fig.cap = "**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "}
 library(ggplot2)
 dat <- data.frame(cpu=c(1, 2, 4, 8), 
                   time = c(1860.0, 801.7, 660.1, 337.7))
@@ -134,6 +165,7 @@ ggplot(dat, aes(log(cpu), log(time))) + geom_point() + geom_line() +
     theme(aspect.ratio=.7, panel.grid.minor = element_blank()) 
 
 ```
+
 Timings:
 ```{r, comment=NA, echo=F}
 dat[,-3]
