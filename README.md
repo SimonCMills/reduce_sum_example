@@ -4,11 +4,11 @@ variable is a vector- has a well worked example
 ([here](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html)),
 and the speedups for these simple models where most of the computation
 can be placed inside the parallel sum component are reasonably well
-documented (though see e.g. Mcelreath post). It’s taken a bit of
-experimentation to figure out how to apply `reduce_sum` to a 2D case and
-I’m not aware of equivalent worked examples for these cases, or example
-speedups. This document therefore aims to provide a minimal example of a
-2D application of `reduce_sum` and take a look at some of the speedups.
+documented. It’s taken a bit of experimentation to figure out how to
+apply `reduce_sum` to a 2D case and I’m not aware of equivalent worked
+examples for these cases, or example speedups. This document therefore
+aims to provide a minimal example of a 2D application of `reduce_sum`
+and take a look at some of the speedups.
 
 There is:
 
@@ -76,9 +76,13 @@ of day. Again, there is an average (negative) time of day effect across
 species, but species also vary in the strength of this association.
 
 More formally:
+
 *ψ*<sub>*i**k*</sub> = *β*<sub>0*k*</sub> + *β*<sub>1*k*</sub>.*x*<sub>*i*</sub>
+
 *θ*<sub>*i**j**k*</sub> = *α*<sub>0*k*</sub> + *α*<sub>1*k*</sub>.*t*<sub>*i**j*</sub>
+
 *Z*<sub>*i**k*</sub> ∼ *b**e**r**n**o**u**l**l**i*(*l**o**g**i**t*<sup> − 1</sup>(*ψ*<sub>*i**k*</sub>))
+
 *y*<sub>*i**j**k*</sub> ∼ *b**e**r**n**o**u**l**l**i*(*l**o**g**i**t*<sup> − 1</sup>(*θ*<sub>*i**j**k*</sub>) × *Z*)
 
 where *ψ*<sub>*i**k*</sub> is the occupancy probability, which varies
@@ -127,12 +131,12 @@ point:species combination.
     head(det_sim_wide)
 
       i k 1 2 3 4
-    1 1 1 0 0 0 0
+    1 1 1 1 0 0 1
     2 1 2 0 0 0 0
     3 1 3 0 0 0 0
     4 1 4 0 0 0 0
-    5 1 5 0 0 0 0
-    6 1 6 0 0 0 0
+    5 1 5 1 0 0 0
+    6 1 6 1 0 0 0
 
 We have two columns that identify the species:point combination,
 followed by 4 columns that give the observation (0 or 1) across each of
@@ -146,17 +150,18 @@ dimensions as the detection data.
 
     head(time_sim_wide)
 
-      i k         1          2         3          4
-    1 1 1 0.3768960 0.08942402 0.2392969 0.32630268
-    2 1 2 0.8270267 0.62180496 0.5095641 0.65581814
-    3 1 3 0.4830888 0.42075869 0.5094399 0.38283407
-    4 1 4 0.8212403 0.34916369 0.7140572 0.08848194
-    5 1 5 0.5062120 0.70874305 0.6222441 0.51146613
-    6 1 6 0.5370691 0.32825580 0.1168601 0.73570627
+      i k          1          2          3         4
+    1 1 1 0.94783188 0.78105551 0.46989183 0.4422911
+    2 1 2 0.88034349 0.61913381 0.46815666 0.3397781
+    3 1 3 0.72850613 0.56020302 0.05316815 0.5970649
+    4 1 4 0.48861836 0.08418942 0.34289308 0.9469285
+    5 1 5 0.70473823 0.28931803 0.93520186 0.1886958
+    6 1 6 0.05258743 0.68159763 0.56526425 0.1574177
 
     head(env_var)
 
-    [1] -0.63877973  1.58099106 -0.84506258 -0.10920018 -0.05197498  0.56108797
+    [1]  1.330710246 -1.219108032  1.474787030 -1.996569258 -0.008873639
+    [6]  1.070783332
 
 Finally, an environmental variable, that just varies between points.
 

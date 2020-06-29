@@ -1,10 +1,10 @@
 ---
 title: "Reduce_sum applied to 2D data"
 date: "22 June 2020"
-output: rmarkdown::github_document
+output: md_document
 ---
 
-In the 2.23 update, Stan introduced ```reduce_sum```, which allows us to parallelise within-chain computation. The 1D case- where the response variable is a vector- has a well worked example ([here](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html)), and the speedups for these simple models where most of the computation can be placed inside the parallel sum component are reasonably well documented (though see e.g. Mcelreath post). It's taken a bit of experimentation to figure out how to apply ```reduce_sum``` to a 2D case and I'm not aware of equivalent worked examples for these cases, or example speedups. This document therefore aims to provide a minimal example of a 2D application of ```reduce_sum``` and take a look at some of the speedups.
+In the 2.23 update, Stan introduced ```reduce_sum```, which allows us to parallelise within-chain computation. The 1D case- where the response variable is a vector- has a well worked example ([here](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html)), and the speedups for these simple models where most of the computation can be placed inside the parallel sum component are reasonably well documented. It's taken a bit of experimentation to figure out how to apply ```reduce_sum``` to a 2D case and I'm not aware of equivalent worked examples for these cases, or example speedups. This document therefore aims to provide a minimal example of a 2D application of ```reduce_sum``` and take a look at some of the speedups.
 
 There is:
 
@@ -33,9 +33,13 @@ These models are readily fit in Stan (note though that they are slightly differe
 For our simulated species, there is variation in occupancy both across species (i.e. some species are more common than others), and also across an environmental gradient. Across all species, there is an average tendency for occupancy probability to increase across the environmental gradient, but there is variation in the strength of this association across species, such that some species can decrease in occupancy probability along this gradient. Detection varies across species, with some species more readily detected than others, and also with a visit-level covariate, which, for the sake of argument, we'll call time of day. Again, there is an average (negative) time of day effect across species, but species also vary in the strength of this association. 
 
 More formally: 
+
 $$\psi_{ik} = \beta_{0k} + \beta_{1k}.x_i$$
+
 $$\theta_{ijk} = \alpha_{0k} + \alpha_{1k}.t_{ij}$$
+
 $$Z_{ik} \sim bernoulli(logit^{-1}(\psi_{ik}))$$
+
 $$y_{ijk} \sim bernoulli(logit^{-1}(\theta_{ijk}) \times Z)$$
 
 where $\psi_{ik}$ is the occupancy probability, which varies according to a species-level intercept, and a species-level environmental association (where $x_i$ is the environmental variable). $\theta_{ijk}$ is the detection component, and varies according to a species-level intercept, and a species-level time of day effect. All species-level effects are simulated and modelled as normally-distributed random effects, i.e. eight hyperparameters in total.
