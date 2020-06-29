@@ -1,3 +1,7 @@
+Reduce\_sum applied to 2D data
+================
+22 June 2020
+
 In the 2.23 update, Stan introduced `reduce_sum`, which allows us to
 parallelise within-chain computation. The 1D case- where the response
 variable is a vector- has a well worked example
@@ -18,18 +22,17 @@ There is:
 
 They are referred to at various points throughout, but see also:
 
--   The `reduce_sum` documentation
+  - The `reduce_sum` documentation
     <https://mc-stan.org/docs/2_23/stan-users-guide/reduce-sum.html>
 
--   [The 1D worked example (logistic
+  - [The 1D worked example (logistic
     regression)](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html),
     which has details that aren’t included here.
 
--   <https://jsocolar.github.io/occupancyModels/> as an
+  - <https://jsocolar.github.io/occupancyModels/> as an
     introduction/explanation to the model in Stan.
 
-(Brief) model description
-=========================
+# (Brief) model description
 
 A model familiar to many ecologists is the occupancy model. They come in
 a lot of flavours, but, very broadly, these models are typically
@@ -60,8 +63,7 @@ These models are readily fit in Stan (note though that they are slightly
 differently formulated than in JAGS/BUGS, see
 [here](https://jsocolar.github.io/occupancyModels/)).
 
-Data simulation
----------------
+## Data simulation
 
 For our simulated species, there is variation in occupancy both across
 species (i.e. some species are more common than others), and also across
@@ -77,34 +79,40 @@ species, but species also vary in the strength of this association.
 
 More formally:
 
-*ψ*<sub>*i**k*</sub> = *β*<sub>0*k*</sub> + *β*<sub>1*k*</sub>.*x*<sub>*i*</sub>
+\[\psi_{ik} = \beta_{0k} + \beta_{1k}.x_i\]
 
-*θ*<sub>*i**j**k*</sub> = *α*<sub>0*k*</sub> + *α*<sub>1*k*</sub>.*t*<sub>*i**j*</sub>
+\[\theta_{ijk} = \alpha_{0k} + \alpha_{1k}.t_{ij}\]
 
-*Z*<sub>*i**k*</sub> ∼ *b**e**r**n**o**u**l**l**i*(*l**o**g**i**t*<sup> − 1</sup>(*ψ*<sub>*i**k*</sub>))
+\[Z_{ik} \sim bernoulli(logit^{-1}(\psi_{ik}))\]
 
-*y*<sub>*i**j**k*</sub> ∼ *b**e**r**n**o**u**l**l**i*(*l**o**g**i**t*<sup> − 1</sup>(*θ*<sub>*i**j**k*</sub>) × *Z*)
+\[y_{ijk} \sim bernoulli(logit^{-1}(\theta_{ijk}) \times Z)\]
 
-where *ψ*<sub>*i**k*</sub> is the occupancy probability, which varies
-according to a species-level intercept, and a species-level
-environmental association (where *x*<sub>*i*</sub> is the environmental
-variable). *θ*<sub>*i**j**k*</sub> is the detection component, and
-varies according to a species-level intercept, and a species-level time
-of day effect. All species-level effects are simulated and modelled as
-normally-distributed random effects, i.e. eight hyperparameters in
-total.
+where \(\psi_{ik}\) is the occupancy probability, which varies according
+to a species-level intercept, and a species-level environmental
+association (where \(x_i\) is the environmental variable).
+\(\theta_{ijk}\) is the detection component, and varies according to a
+species-level intercept, and a species-level time of day effect. All
+species-level effects are simulated and modelled as normally-distributed
+random effects, i.e. eight hyperparameters in total.
 
 Data are generated from this model in the following script:
 
-    source("simulate_data.R")
+``` r
+source("simulate_data.R")
+```
 
 For the timings, I’ll generate 50 species across 50 sites and 4 visits
 (i.e. 10,000 observations in total).
 
-Visually, the model look something like this (for nine example species):
+Visually, the model look something like this (for nine example
+species):
 
-<img src="README_files/figure-markdown_strict/figs-1.png" alt="Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"  />
+<div class="figure" style="text-align: center">
+
+<img src="README_files/figure-gfm/figs-1.png" alt="Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"  />
+
 <p class="caption">
+
 Nine example species taken from the full simulation. Solid line
 indicates the underlying occupancy relationship, while the dashed line
 indicates the probability of detection, accounting for the species’
@@ -114,29 +122,34 @@ constant offset, but rather varies depending on time of day (which
 varies between 0 and 1). Note the variation in the environmental
 association, the detection offset, and the strength of the time-of-day
 effect on detection accross species
+
 </p>
 
-Data structure
---------------
+</div>
+
+## Data structure
 
 Observations inherently have a 3D structure, structured by the point
-that was surveyed (point *i*), the visit to the point (visit *j*), and
-the species that was observed/unobserved (species *k*). However, these
-are readily collapsed to a 2D structure by collapsing the species
+that was surveyed (point \(i\)), the visit to the point (visit \(j\)),
+and the species that was observed/unobserved (species \(k\)). However,
+these are readily collapsed to a 2D structure by collapsing the species
 dimension to produce a dataframe that has dimensions
-(*n*<sub>*p**o**i**n**t**s*</sub> × *n*<sub>*s**p**e**c**i**e**s*</sub>,
-*n*<sub>*v**i**s**i**t**s*</sub>), with each row now indexing a
-point:species combination.
+(\(n_{points} \times n_{species}\), \(n_{visits}\)), with each row now
+indexing a point:species combination.
 
-    head(det_sim_wide)
+``` r
+head(det_sim_wide)
+```
 
-      i k 1 2 3 4
-    1 1 1 1 0 0 1
-    2 1 2 0 0 0 0
-    3 1 3 0 0 0 0
-    4 1 4 0 0 0 0
-    5 1 5 1 0 0 0
-    6 1 6 1 0 0 0
+``` 
+  i k 1 2 3 4
+1 1 1 1 1 1 1
+2 1 2 0 0 0 0
+3 1 3 0 1 0 0
+4 1 4 0 1 1 0
+5 1 5 0 0 0 0
+6 1 6 0 0 0 0
+```
 
 We have two columns that identify the species:point combination,
 followed by 4 columns that give the observation (0 or 1) across each of
@@ -148,25 +161,29 @@ point was visited, not upon which species were observed, but it’s more
 straightforward to just produce it as a array of times with the same
 dimensions as the detection data.
 
-    head(time_sim_wide)
+``` r
+head(time_sim_wide)
+```
 
-      i k          1          2          3         4
-    1 1 1 0.94783188 0.78105551 0.46989183 0.4422911
-    2 1 2 0.88034349 0.61913381 0.46815666 0.3397781
-    3 1 3 0.72850613 0.56020302 0.05316815 0.5970649
-    4 1 4 0.48861836 0.08418942 0.34289308 0.9469285
-    5 1 5 0.70473823 0.28931803 0.93520186 0.1886958
-    6 1 6 0.05258743 0.68159763 0.56526425 0.1574177
+``` 
+  i k         1         2         3          4
+1 1 1 0.6480237 0.2840275 0.9465760 0.36795346
+2 1 2 0.1578670 0.3622074 0.5262428 0.04618427
+3 1 3 0.2980339 0.3040056 0.6761730 0.64075802
+4 1 4 0.7713951 0.4521123 0.3173471 0.19420438
+5 1 5 0.5254873 0.6827691 0.3308946 0.84465349
+6 1 6 0.5203400 0.8647668 0.3700904 0.88397837
+```
 
-    head(env_var)
+``` r
+head(env_var)
+```
 
-    [1]  1.330710246 -1.219108032  1.474787030 -1.996569258 -0.008873639
-    [6]  1.070783332
+    [1]  0.8083364 -0.8786763  0.3414831  0.4312042  0.2326475  2.1033983
 
 Finally, an environmental variable, that just varies between points.
 
-The Stan model
-==============
+# The Stan model
 
 The Stan file is a little complicated if it’s not a model you are
 already familiar with. The main oddity is the if-statement asking if
@@ -247,8 +264,7 @@ this in more detail.
         //...
     }
 
-`reduce_sum` formulation
-========================
+# `reduce_sum` formulation
 
 To get the parallelisation done, we need to break up the computation
 such that it can be passed out to multiple workers. To do this, the
@@ -368,42 +384,51 @@ function: you could simplify it by doing more computation outside
 objects, but then you would be shifting more of the computation
 *outside* of the bit that will be run in parallel. As the
 parallelisation speedup would take a hit from doing this, it’s better to
-do it this way, despite the unwieldiness of the ensuing function.
+do it this way, despite the unwieldiness of the ensuing
+function.
 
-Timings
-=======
+# Timings
 
-<img src="README_files/figure-markdown_strict/fig2-1.png" alt="Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "  />
+<div class="figure" style="text-align: center">
+
+<img src="README_files/figure-gfm/fig2-1.png" alt="Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "  />
+
 <p class="caption">
+
 Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50
 species, 50 sites, and 4 visits (i.e. 10,000 observations in total).
+
 </p>
+
+</div>
 
 Timings:
 
-      cpu   time speedup
-    1   1 1860.0    1.00
-    2   2  801.7    2.32
-    3   4  660.1    2.82
-    4   8  337.7    5.51
+``` 
+  cpu   time speedup
+1   1 1860.0    1.00
+2   2  801.7    2.32
+3   4  660.1    2.82
+4   8  337.7    5.51
+```
 
 As you would hope, we are getting good speedups by parallelising the
 model. While the dataset simulated here is fairly small, with a larger
-dataset, a 4-6x speedup on a chain that would otherwise take &gt;1 week
-to run is not trivial at all! The speedup itself will also depend on the
+dataset, a 4-6x speedup on a chain that would otherwise take \>1 week to
+run is not trivial at all\! The speedup itself will also depend on the
 proportion of the model that can be placed within the `partial_sum`
 function (see
 [here](https://statmodeling.stat.columbia.edu/2020/05/05/easy-within-chain-parallelisation-in-stan/)).
 With increased model complexity, as long as the relative proportions of
-‘stuff in the `partial_sum`’ to ‘stuff outside the `partial_sum`’ remain
-constant, we should expect to see similar speedups. Anecdotally this
-seems to be the case, and I’ve seen fairly equivalent speedups running
-these models with more complexity (e.g. more terms in the detection and
-occupancy components).
+‘stuff in the `partial_sum`’ to ‘stuff outside the `partial_sum`’
+remain constant, we should expect to see similar speedups. Anecdotally
+this seems to be the case, and I’ve seen fairly equivalent speedups
+running these models with more complexity (e.g. more terms in the
+detection and occupancy components).
 
 For models where almost all the computation can be placed inside the
 `partial_sum`, we can achieve a 1:1 speedup (in some cases, marginally
-better!). Given that this model has a bunch of centering of
+better\!). Given that this model has a bunch of centering of
 hyper-parameters outside of the main model block, it is to be expected
 that we should see speedups slightly below this line.
 
