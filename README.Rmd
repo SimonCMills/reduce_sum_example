@@ -160,7 +160,7 @@ ggplot(dat, aes(log(cpu), log(time))) + geom_point() + geom_line() +
     # geom_line(data=timings3) +
     scale_x_continuous(breaks=log(dat$cpu), labels=dat$cpu) +
     geom_line(aes(y=log(bc)), lty=2) +
-    scale_y_continuous("Log-time (s)", breaks=c(6, 6.5, 7, 7.5), labels = round(exp(c(6, 6.5, 7, 7.5)), 0), 
+    scale_y_continuous("Time (s)", breaks=c(6, 6.5, 7, 7.5), labels = round(exp(c(6, 6.5, 7, 7.5)), 0), 
                        sec.axis = sec_axis(trans = ~dat$time[1]/exp(.), name = "Relative speedup", breaks = c(1, 2, 4, 6, 8))) +
     theme(aspect.ratio=.7, panel.grid.minor = element_blank()) 
 
