@@ -79,18 +79,34 @@ species, but species also vary in the strength of this association.
 
 More formally:
 
-\[\psi_{ik} = \beta_{0k} + \beta_{1k}.x_i\]
+  
+![\\psi\_{ik} = \\beta\_{0k} +
+\\beta\_{1k}.x\_i](https://latex.codecogs.com/png.latex?%5Cpsi_%7Bik%7D%20%3D%20%5Cbeta_%7B0k%7D%20%2B%20%5Cbeta_%7B1k%7D.x_i
+"\\psi_{ik} = \\beta_{0k} + \\beta_{1k}.x_i")  
 
-\[\theta_{ijk} = \alpha_{0k} + \alpha_{1k}.t_{ij}\]
+  
+![\\theta\_{ijk} = \\alpha\_{0k} +
+\\alpha\_{1k}.t\_{ij}](https://latex.codecogs.com/png.latex?%5Ctheta_%7Bijk%7D%20%3D%20%5Calpha_%7B0k%7D%20%2B%20%5Calpha_%7B1k%7D.t_%7Bij%7D
+"\\theta_{ijk} = \\alpha_{0k} + \\alpha_{1k}.t_{ij}")  
 
-\[Z_{ik} \sim bernoulli(logit^{-1}(\psi_{ik}))\]
+  
+![Z\_{ik} \\sim
+bernoulli(logit^{-1}(\\psi\_{ik}))](https://latex.codecogs.com/png.latex?Z_%7Bik%7D%20%5Csim%20bernoulli%28logit%5E%7B-1%7D%28%5Cpsi_%7Bik%7D%29%29
+"Z_{ik} \\sim bernoulli(logit^{-1}(\\psi_{ik}))")  
 
-\[y_{ijk} \sim bernoulli(logit^{-1}(\theta_{ijk}) \times Z)\]
+  
+![y\_{ijk} \\sim bernoulli(logit^{-1}(\\theta\_{ijk}) \\times
+Z)](https://latex.codecogs.com/png.latex?y_%7Bijk%7D%20%5Csim%20bernoulli%28logit%5E%7B-1%7D%28%5Ctheta_%7Bijk%7D%29%20%5Ctimes%20Z%29
+"y_{ijk} \\sim bernoulli(logit^{-1}(\\theta_{ijk}) \\times Z)")  
 
-where \(\psi_{ik}\) is the occupancy probability, which varies according
-to a species-level intercept, and a species-level environmental
-association (where \(x_i\) is the environmental variable).
-\(\theta_{ijk}\) is the detection component, and varies according to a
+where
+![\\psi\_{ik}](https://latex.codecogs.com/png.latex?%5Cpsi_%7Bik%7D
+"\\psi_{ik}") is the occupancy probability, which varies according to a
+species-level intercept, and a species-level environmental association
+(where ![x\_i](https://latex.codecogs.com/png.latex?x_i "x_i") is the
+environmental variable).
+![\\theta\_{ijk}](https://latex.codecogs.com/png.latex?%5Ctheta_%7Bijk%7D
+"\\theta_{ijk}") is the detection component, and varies according to a
 species-level intercept, and a species-level time of day effect. All
 species-level effects are simulated and modelled as normally-distributed
 random effects, i.e. eight hyperparameters in total.
@@ -130,12 +146,17 @@ effect on detection accross species
 ## Data structure
 
 Observations inherently have a 3D structure, structured by the point
-that was surveyed (point \(i\)), the visit to the point (visit \(j\)),
-and the species that was observed/unobserved (species \(k\)). However,
-these are readily collapsed to a 2D structure by collapsing the species
-dimension to produce a dataframe that has dimensions
-(\(n_{points} \times n_{species}\), \(n_{visits}\)), with each row now
-indexing a point:species combination.
+that was surveyed (point ![i](https://latex.codecogs.com/png.latex?i
+"i")), the visit to the point (visit
+![j](https://latex.codecogs.com/png.latex?j "j")), and the species that
+was observed/unobserved (species
+![k](https://latex.codecogs.com/png.latex?k "k")). However, these are
+readily collapsed to a 2D structure by collapsing the species dimension
+to produce a dataframe that has dimensions (![n\_{points} \\times
+n\_{species}](https://latex.codecogs.com/png.latex?n_%7Bpoints%7D%20%5Ctimes%20n_%7Bspecies%7D
+"n_{points} \\times n_{species}"),
+![n\_{visits}](https://latex.codecogs.com/png.latex?n_%7Bvisits%7D
+"n_{visits}")), with each row now indexing a point:species combination.
 
 ``` r
 head(det_sim_wide)
@@ -143,12 +164,12 @@ head(det_sim_wide)
 
 ``` 
   i k 1 2 3 4
-1 1 1 0 0 1 1
-2 1 2 0 0 0 1
-3 1 3 0 0 0 0
-4 1 4 0 1 0 0
+1 1 1 0 0 0 0
+2 1 2 0 1 0 1
+3 1 3 0 0 1 0
+4 1 4 0 0 1 1
 5 1 5 0 0 0 0
-6 1 6 0 1 1 1
+6 1 6 1 0 1 0
 ```
 
 We have two columns that identify the species:point combination,
@@ -166,20 +187,20 @@ head(time_sim_wide)
 ```
 
 ``` 
-  i k          1          2         3         4
-1 1 1 0.96978669 0.32542775 0.4268763 0.9971605
-2 1 2 0.82017800 0.03779532 0.5924298 0.5582994
-3 1 3 0.60685668 0.73317899 0.6583291 0.1426305
-4 1 4 0.88514915 0.08923415 0.7446748 0.6004626
-5 1 5 0.21015783 0.06349918 0.4800431 0.9760469
-6 1 6 0.09186318 0.87616537 0.8712705 0.0442753
+  i k         1          2          3          4
+1 1 1 0.4160341 0.48836341 0.87451355 0.20523981
+2 1 2 0.5419837 0.06325611 0.79788525 0.01721047
+3 1 3 0.8530399 0.85190901 0.08803679 0.26474531
+4 1 4 0.6889039 0.06755551 0.54969955 0.18914744
+5 1 5 0.5868925 0.05478410 0.38027458 0.65522361
+6 1 6 0.4747529 0.33567020 0.28825384 0.67986878
 ```
 
 ``` r
 head(env_var)
 ```
 
-    [1]  0.28405702  0.57223954  1.11868142 -1.56612235  0.48261498  0.03993497
+    [1]  0.4610402  0.4429136 -1.0210129  0.5213548 -0.3779416 -0.2250406
 
 Finally, an environmental variable, that just varies between points.
 

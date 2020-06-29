@@ -1,7 +1,9 @@
 ---
 title: "Reduce_sum applied to 2D data"
 date: "22 June 2020"
-output: github_document
+output: 
+    github_document:
+        pandoc_args: --webtex
 ---
 
 In the 2.23 update, Stan introduced ```reduce_sum```, which allows us to parallelise within-chain computation. The 1D case- where the response variable is a vector- has a well worked example ([here](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html)), and the speedups for these simple models where most of the computation can be placed inside the parallel sum component are reasonably well documented. It's taken a bit of experimentation to figure out how to apply ```reduce_sum``` to a 2D case and I'm not aware of equivalent worked examples for these cases, or example speedups. This document therefore aims to provide a minimal example of a 2D application of ```reduce_sum``` and take a look at some of the speedups.
