@@ -19,6 +19,7 @@ d0_sigma <- .5
 d1_sigma <- .5
 
 # parameters
+set.seed(100)
 b0 <- rnorm(n_species, b0_mu, b0_sigma)
 b1 <- rnorm(n_species, b1_mu, b1_sigma)
 d0 <- rnorm(n_species, d0_mu, d0_sigma)

@@ -32,7 +32,7 @@ They are referred to at various points throughout, but see also:
   - <https://jsocolar.github.io/occupancyModels/> as an
     introduction/explanation to the model in Stan
 
-# (Brief) model description
+# 1\. (Brief) model description
 
 A model familiar to many ecologists is the occupancy model. They come in
 a lot of flavours, but, very broadly, these models are typically
@@ -99,7 +99,9 @@ bernoulli(logit^{-1}(\\psi\_{ik}))](https://latex.codecogs.com/png.latex?Z_%7Bik
 Z)](https://latex.codecogs.com/png.latex?y_%7Bijk%7D%20%5Csim%20bernoulli%28logit%5E%7B-1%7D%28%5Ctheta_%7Bijk%7D%29%20%5Ctimes%20Z%29
 "y_{ijk} \\sim bernoulli(logit^{-1}(\\theta_{ijk}) \\times Z)")  
 
-where
+where ![i](https://latex.codecogs.com/png.latex?i "i") indexes points,
+![j](https://latex.codecogs.com/png.latex?j "j") indexes visits,
+![k](https://latex.codecogs.com/png.latex?k "k") indexes species.
 ![\\psi\_{ik}](https://latex.codecogs.com/png.latex?%5Cpsi_%7Bik%7D
 "\\psi_{ik}") is the occupancy probability, which varies according to a
 species-level intercept, and a species-level environmental association
@@ -125,19 +127,18 @@ species):
 
 <div class="figure" style="text-align: center">
 
-<img src="README_files/figure-gfm/figs-1.png" alt="**Figure 1:** Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"  />
+<img src="README_files/figure-gfm/figs-1.png" alt="**Figure 1:** Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detecting a given species on a point, estimated using the upper and lower bounds on the detection effect (at time=0 and time=1 respectively), and accounting for the species' overall detectability. Note the variation across species in the environmental association, the detection offset, and the strength of the time-of-day effect."  />
 
 <p class="caption">
 
 **Figure 1:** Nine example species taken from the full simulation. Solid
 line indicates the underlying occupancy relationship, while the dashed
-line indicates the probability of detection, accounting for the species’
-detectability. As this depends both on the species’ detectibility and
-also a visit-level covariate (time of day), the detectibility is not a
-constant offset, but rather varies depending on time of day (which
-varies between 0 and 1). Note the variation in the environmental
+line indicates the probability of detecting a given species on a point,
+estimated using the upper and lower bounds on the detection effect (at
+time=0 and time=1 respectively), and accounting for the species’ overall
+detectability. Note the variation across species in the environmental
 association, the detection offset, and the strength of the time-of-day
-effect on detection accross species
+effect.
 
 </p>
 
@@ -164,12 +165,12 @@ head(det_sim_wide)
 
 ``` 
   i k 1 2 3 4
-1 1 1 0 1 0 0
-2 1 2 0 0 0 0
-3 1 3 0 0 1 0
-4 1 4 0 0 0 0
-5 1 5 0 0 1 1
-6 1 6 0 1 0 0
+1 1 1 0 0 1 1
+2 1 2 0 1 0 0
+3 1 3 0 0 0 0
+4 1 4 0 1 0 0
+5 1 5 0 0 0 0
+6 1 6 0 0 0 0
 ```
 
 We have two columns that identify the species:point combination,
@@ -187,24 +188,24 @@ head(time_sim_wide)
 ```
 
 ``` 
-  i k         1         2         3          4
-1 1 1 0.6718841 0.5165038 0.8644191 0.09028463
-2 1 2 0.2200007 0.9218696 0.6630422 0.28670152
-3 1 3 0.1859771 0.8414575 0.4018805 0.14375275
-4 1 4 0.8825094 0.2849294 0.4753757 0.35831950
-5 1 5 0.6178907 0.8492360 0.6639175 0.89314053
-6 1 6 0.8250160 0.3381398 0.9950988 0.11576463
+  i k         1         2         3         4
+1 1 1 0.5050863 0.1626824 0.2887219 0.2981168
+2 1 2 0.3444656 0.6588384 0.2195502 0.8472350
+3 1 3 0.6711429 0.6799846 0.8495923 0.6179082
+4 1 4 0.2644159 0.1686149 0.1075390 0.2057810
+5 1 5 0.3336012 0.5206097 0.8926069 0.9725047
+6 1 6 0.2652108 0.8541405 0.2386593 0.5799014
 ```
 
 ``` r
 head(env_var)
 ```
 
-    [1] -0.5701107 -0.8914825  0.3680577  2.0535598 -0.3794084  0.2064427
+    [1] -0.26199577 -0.06884403 -0.37888356  2.58195893  0.12983414 -0.71302498
 
 Finally, an environmental variable, that just varies between points.
 
-# The Stan model
+# 2\. The Stan model
 
 The Stan file is a little complicated if it’s not a model you are
 already familiar with. The main oddity is the if-statement asking if
@@ -218,41 +219,41 @@ be there. Again <https://jsocolar.github.io/occupancyModels/> explains
 this in more detail.
 
     data {
-        int<lower=1> n_tot;
-        int<lower=1> n_visit;
+        int<lower=1> n_tot; // total number of rows in df
+        int<lower=1> n_visit; // width of df (number of visits)
         int<lower=1> n_species;
-        int<lower=1> n_point;
+        int<lower=1> n_point; // number of points sampled at
         
-        int<lower=1> id_sp[n_tot];
-        int<lower=1> id_pt[n_tot];
-        int det[n_tot, n_visit];
-        row_vector[n_visit] vis_cov[n_tot];
-        vector[n_tot] Q;
+        int<lower=1> id_sp[n_tot]; //an index (length n_tot) for species identity
+        int<lower=1> id_pt[n_tot]; //an index (length n_tot) for point identity
+        int det[n_tot, n_visit]; //an index (length n_tot) for point identity
+        row_vector[n_visit] vis_cov[n_tot]; // visit covariate (time of day)
+        vector[n_tot] Q; // indexes whether a species has been observed at the point
         vector[n_point] env_var;
         
     }
     parameters {
-        // psi: occupancy 
+        // occupancy intercept-by-species
         real mu_b0;
         real<lower=0> sigma_b0;
         vector[n_species] b0_raw;
-        
+        // occupancy slope-by-species
         real mu_b1;
         real<lower=0> sigma_b1;
         vector[n_species] b1_raw;
         
-        // theta: detection
+        // detection intercept-by-species
         real mu_d0; 
         real<lower=0> sigma_d0;
         vector[n_species] d0_raw;
-        
+        // detection slope-by-species
         real mu_d1; 
         real<lower=0> sigma_d1;
         vector[n_species] d1_raw;
         
     }
     transformed parameters{
-        // scaling
+        // sorting out non-centering
         vector[n_species] b0 = mu_b0 + b0_raw * sigma_b0;
         vector[n_species] b1 = mu_b1 + b1_raw * sigma_b1;
         vector[n_species] d0 = mu_d0 + d0_raw * sigma_d0;
@@ -281,11 +282,24 @@ this in more detail.
         
         target += sum(lp);
         
-        // Priors
-        //...
+        // priors
+        mu_b0 ~ normal(0, 10);
+        mu_b1 ~ normal(0, 10);
+        mu_d0 ~ normal(0, 10);
+        mu_d1 ~ normal(0, 10);
+        
+        sigma_b0 ~ normal(0, 10);
+        sigma_b1 ~ normal(0, 10);
+        sigma_d0 ~ normal(0, 10);
+        sigma_d1 ~ normal(0, 10);
+        
+        b0_raw ~ normal(0,1);
+        b1_raw ~ normal(0,1);
+        d0_raw ~ normal(0,1);
+        d1_raw ~ normal(0,1);
     }
 
-# `reduce_sum` formulation
+## `reduce_sum` formulation
 
 To get the parallelisation done, we need to break up the computation
 such that it can be passed out to multiple workers. To do this, the
@@ -334,41 +348,41 @@ the data, and pass these data chunks out to be computed in parallel.
         }
     }
     data {
-        int<lower=1> n_tot;
-        int<lower=1> n_visit;
-        int<lower=1> n_species;
-        int<lower=1> n_point;
+        int<lower=1> n_tot; // total number of rows in df
+        int<lower=1> n_visit; // width of df (number of visits)
+        int<lower=1> n_species; 
+        int<lower=1> n_point; // number of points sampled at
         
-        int<lower=1> id_sp[n_tot];
-        int<lower=1> id_pt[n_tot];
-        int det[n_tot, n_visit];
-        row_vector[n_visit] vis_cov[n_tot];
-        int Q[n_tot];
-        vector[n_point] env_var;
-        int<lower=1> grainsize;
+        int<lower=1> id_sp[n_tot]; //an index (length n_tot) for species identity
+        int<lower=1> id_pt[n_tot]; //an index (length n_tot) for point identity
+        int det[n_tot, n_visit]; // the detection matrix
+        row_vector[n_visit] vis_cov[n_tot]; // visit covariate (time of day)
+        int Q[n_tot]; // indexes whether a species has been observed at the point
+        vector[n_point] env_var; 
+        int<lower=1> grainsize; 
     }
     parameters {
-        // psi: occupancy 
+        // occupancy intercept-by-species
         real mu_b0;
         real<lower=0> sigma_b0;
         vector[n_species] b0_raw;
-        
+        // occupancy slope-by-species
         real mu_b1;
         real<lower=0> sigma_b1;
         vector[n_species] b1_raw;
         
-        // theta: detection
+        // detection intercept-by-species
         real mu_d0; 
         real<lower=0> sigma_d0;
         vector[n_species] d0_raw;
-        
+        // detection slope-by-species
         real mu_d1; 
         real<lower=0> sigma_d1;
         vector[n_species] d1_raw;
         
     }
     transformed parameters{
-        // scaling
+        // sorting out non-centering
         vector[n_species] b0 = mu_b0 + b0_raw * sigma_b0;
         vector[n_species] b1 = mu_b1 + b1_raw * sigma_b1;
         vector[n_species] d0 = mu_d0 + d0_raw * sigma_d0;
@@ -393,8 +407,6 @@ the data, and pass these data chunks out to be computed in parallel.
         b1_raw ~ normal(0,1);
         d0_raw ~ normal(0,1);
         d1_raw ~ normal(0,1);
-        
-        
     }
 
 This is largely a repetition of the previous stan model, the only
@@ -406,6 +418,8 @@ objects, but then you would be shifting more of the computation
 *outside* of the bit that will be run in parallel. As the
 parallelisation speedup would take a hit from doing this, it’s better to
 do it this way, despite the unwieldiness of the ensuing function.
+
+## Running the multi-threaded model
 
 When compiling the model, we need to specify that it is threaded
 (cpp\_options), and then specify the threads\_per\_chain at the sampling
@@ -441,36 +455,33 @@ samps <- mod$sample(data = stan_data,
 print(samps$time())
 ```
 
-# Timings
+# 3\. Timings
+
+    ## Warning in bind_rows_(x, .id): binding character and factor vector, coercing
+    ## into character vector
 
 <div class="figure" style="text-align: center">
 
-<img src="README_files/figure-gfm/fig2-1.png" alt="**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "  />
+<img src="README_files/figure-gfm/fig2-1.png" alt="**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). Model fitting was repeated 6 times each (in sequence of 8, 4, 2, 1 threads, repeated 6 times). Left hand panel presents the average speedup across runs, while the right hand panel presents each individual run, with Time on the y-axis. Speedup figure given above the points (average in the left-hand panel)."  />
 
 <p class="caption">
 
 **Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated
 dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000
-observations in total).
+observations in total). Model fitting was repeated 6 times each (in
+sequence of 8, 4, 2, 1 threads, repeated 6 times). Left hand panel
+presents the average speedup across runs, while the right hand panel
+presents each individual run, with Time on the y-axis. Speedup figure
+given above the points (average in the left-hand panel).
 
 </p>
 
 </div>
 
-Timings:
-
-``` 
-  cpu   time speedup
-1   1 1860.0    1.00
-2   2  801.7    2.32
-3   4  660.1    2.82
-4   8  337.7    5.51
-```
-
-As you would hope, we are getting good speedups by parallelising the
-model. While the dataset simulated here is fairly small, with a larger
-dataset, a 4-6x speedup on a chain that would otherwise take \>1 week to
-run is not trivial at all\! The speedup itself will also depend on the
+As you would hope, we are getting good average speedups by parallelising
+the model. While the dataset simulated here is fairly small, with a
+larger dataset, a 4.5x speedup on a chain that would otherwise take \>1
+week to run is not trivial at all\! The speedup depends on the
 proportion of the model that can be placed within the `partial_sum`
 function (see
 [here](https://statmodeling.stat.columbia.edu/2020/05/05/easy-within-chain-parallelisation-in-stan/)).
@@ -485,7 +496,10 @@ For models where almost all the computation can be placed inside the
 `partial_sum`, we can achieve a 1:1 speedup (in some cases, marginally
 better\!). Given that this model has a bunch of centering of
 hyper-parameters outside of the main model block, it is to be expected
-that we should see speedups slightly below this line.
+that we should see speedups slightly below this line. Some individual
+runs substantially exceeded the 1:1 line, which presumably arises due to
+a very slow 1-thread run (with the speedup then being calculated
+relative to this).
 
 The other thing to mention is that when comparing speedups, it’s
 important to give the computer a proper job to really see the speedup
@@ -498,3 +512,83 @@ were (a) not very repeatable, varying substantially between runs, and
 because the overhead paid for parallelising makes up a greater
 proportion of the total run time, and it’s difficult to get large
 speed-gains on the bit that is being run in parallel.
+
+## When to parallelise?
+
+Ultimately, we care about the number of effective samples per unit time.
+With extra cores available, we would also increase this just by running
+extra chains simultaneously. In this case the warmup overhead would be
+paid an extra time for each additional chain, unlike in the
+multi-threaded version, where it is just being paid for the original
+number of chains (assuming you put all your cores into increased threads
+rather than chains). The obvious question is: what speedup would you
+need to see to make running multiple threads better than running
+multiple chains?
+
+As a rough heuristic, we can do the following calculation. In the first
+place we need to run multiple chains as the baseline comparison, as we
+ideally need multiple chains to check convergence diagnostics, so I
+would always run 4 chains in the first place, irrespective of how many
+cores are available. The question then becomes, with more cores- beyond
+those used by the 4 parallel chains in the first place- how should they
+be allocated (to threads or cores)?. A back of the envelope calculation
+would be that the number of post-warmup samples obtained,
+![n\_{samp}](https://latex.codecogs.com/png.latex?n_%7Bsamp%7D
+"n_{samp}"), in a fixed unit of time is:
+
+  
+![n\_{samp} = (n\_{tot} \\times r - n\_{wu}) \\times
+n\_{core}](https://latex.codecogs.com/png.latex?n_%7Bsamp%7D%20%3D%20%28n_%7Btot%7D%20%5Ctimes%20r%20-%20n_%7Bwu%7D%29%20%5Ctimes%20n_%7Bcore%7D
+"n_{samp} = (n_{tot} \\times r - n_{wu}) \\times n_{core}")  
+where ![n\_{tot}](https://latex.codecogs.com/png.latex?n_%7Btot%7D
+"n_{tot}") is the total number of samples, modified by
+![r](https://latex.codecogs.com/png.latex?r "r"), the rate at which
+samples are obtained,
+![n\_{wu}](https://latex.codecogs.com/png.latex?n_%7Bwu%7D "n_{wu}") is
+the number of warmup samples, and
+![n\_{core}](https://latex.codecogs.com/png.latex?n_%7Bcore%7D
+"n_{core}") is the number of cores. Faster sampling due to more threads,
+i.e. ![r \> 1](https://latex.codecogs.com/png.latex?r%20%3E%201
+"r \> 1"), will result in more total samples, while the warmup overhead
+remains the same.
+
+The difference in number of samples, as either rate or number of cores
+is modified is therefore:   
+![n\_{diff} = (n\_{tot} \\times r\_{diff} - n\_{tot} \\times p\_{wu})
+\\times
+c\_{diff}](https://latex.codecogs.com/png.latex?n_%7Bdiff%7D%20%3D%20%28n_%7Btot%7D%20%5Ctimes%20r_%7Bdiff%7D%20-%20n_%7Btot%7D%20%5Ctimes%20p_%7Bwu%7D%29%20%5Ctimes%20c_%7Bdiff%7D
+"n_{diff} = (n_{tot} \\times r_{diff} - n_{tot} \\times p_{wu}) \\times c_{diff}")  
+where both r and c are proportional increases (i.e. 4 to 8 cores would
+be ![c\_{diff}=2](https://latex.codecogs.com/png.latex?c_%7Bdiff%7D%3D2
+"c_{diff}=2"), and a rate doubling would be
+![r\_{diff}=2](https://latex.codecogs.com/png.latex?r_%7Bdiff%7D%3D2
+"r_{diff}=2")). I’ve also rewritten the warmup as a proportion of the
+total number of samples. From this we can see that the answer will
+depend upon the speedup,
+![r\_{diff}](https://latex.codecogs.com/png.latex?r_%7Bdiff%7D
+"r_{diff}"), and the proportion of samples spent on warmup. If we assume
+you spend half of the total samples on warmup (i.e.
+![n\_{wu}](https://latex.codecogs.com/png.latex?n_%7Bwu%7D "n_{wu}") is
+half ![n\_{tot}](https://latex.codecogs.com/png.latex?n_%7Btot%7D
+"n_{tot}")), then as long as the speedup is \>1.5, increasing the number
+of threads over the number of cores is best. If the warmup is less than
+half the total samples, this speedup ‘break-even-point’ will increase,
+as increasing the number of chains is penalised less by the warmup
+overhead.
+
+Multi-threading will also get diminishing returns, as the parallelisable
+portion of the model becomes sliced ever more ways. Thus
+![r\_{diff}](https://latex.codecogs.com/png.latex?r_%7Bdiff%7D
+"r_{diff}") isn’t constant, but at some point will start to plateau with
+increasing threads. So if the model is already on a bunch of threads,
+then it may become worth running additional chains rather than
+increasing the number of threads further.
+
+Importantly, this is just a vague heuristic, and there are likely
+subtleties in the relative speed of sampling. During warmup the HMC is
+also adapting, which presumably means rate of sampling is slower, which
+would adjust this relationship further in favour of running multiple
+threads. This caveat aside, running this model on a dataset of this size
+appears to come out in favour of multi-threading up to about 4-threads,
+and approximately break-even at around 8-threads. Beyond this, to get
+more samples in a fixed time it would be best to add chains.

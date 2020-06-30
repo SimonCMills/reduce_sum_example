@@ -1,39 +1,39 @@
 data {
-    int<lower=1> n_tot;
-    int<lower=1> n_visit;
+    int<lower=1> n_tot; // total number of rows in df
+    int<lower=1> n_visit; // width of df (number of visits)
     int<lower=1> n_species;
-    int<lower=1> n_point;
+    int<lower=1> n_point; // number of points sampled at
     
-    int<lower=1> id_sp[n_tot];
-    int<lower=1> id_pt[n_tot];
-    int det[n_tot, n_visit];
-    row_vector[n_visit] vis_cov[n_tot];
-    vector[n_tot] Q;
+    int<lower=1> id_sp[n_tot]; //an index (length n_tot) for species identity
+    int<lower=1> id_pt[n_tot]; //an index (length n_tot) for point identity
+    int det[n_tot, n_visit]; //an index (length n_tot) for point identity
+    row_vector[n_visit] vis_cov[n_tot]; // visit covariate (time of day)
+    vector[n_tot] Q; // indexes whether a species has been observed at the point
     vector[n_point] env_var;
     
 }
 parameters {
-    // psi: occupancy 
+    // occupancy intercept-by-species
     real mu_b0;
     real<lower=0> sigma_b0;
     vector[n_species] b0_raw;
-    
+    // occupancy slope-by-species
     real mu_b1;
     real<lower=0> sigma_b1;
     vector[n_species] b1_raw;
     
-    // theta: detection
+    // detection intercept-by-species
     real mu_d0; 
     real<lower=0> sigma_d0;
     vector[n_species] d0_raw;
-    
+    // detection slope-by-species
     real mu_d1; 
     real<lower=0> sigma_d1;
     vector[n_species] d1_raw;
     
 }
 transformed parameters{
-    // scaling
+    // sorting out non-centering
     vector[n_species] b0 = mu_b0 + b0_raw * sigma_b0;
     vector[n_species] b1 = mu_b1 + b1_raw * sigma_b1;
     vector[n_species] d0 = mu_d0 + d0_raw * sigma_d0;
@@ -62,6 +62,19 @@ model {
     
     target += sum(lp);
     
-    // Priors
-    //...
+    // priors
+    mu_b0 ~ normal(0, 10);
+    mu_b1 ~ normal(0, 10);
+    mu_d0 ~ normal(0, 10);
+    mu_d1 ~ normal(0, 10);
+    
+    sigma_b0 ~ normal(0, 10);
+    sigma_b1 ~ normal(0, 10);
+    sigma_d0 ~ normal(0, 10);
+    sigma_d1 ~ normal(0, 10);
+    
+    b0_raw ~ normal(0,1);
+    b1_raw ~ normal(0,1);
+    d0_raw ~ normal(0,1);
+    d1_raw ~ normal(0,1);
 }

@@ -19,6 +19,7 @@ d0_sigma <- .5
 d1_sigma <- .5
 
 # parameters
+set.seed(100)
 b0 <- rnorm(n_species, b0_mu, b0_sigma)
 b1 <- rnorm(n_species, b1_mu, b1_sigma)
 d0 <- rnorm(n_species, d0_mu, d0_sigma)
@@ -40,8 +41,6 @@ df_sim <- expand.grid(i = 1:n_site,
 det_sim_wide <- reshape2::dcast(df_sim, i + k ~ j, value.var="det_sim")
 time_sim_wide <- reshape2::dcast(df_sim, i + k ~ j, value.var="time")
 
-
-
 # run model 
 stan_data <- list(n_tot = nrow(det_sim_wide), 
                   n_visit = 4, 
@@ -49,48 +48,51 @@ stan_data <- list(n_tot = nrow(det_sim_wide),
                   n_point = length(unique(det_sim_wide$i)), 
                   id_sp = det_sim_wide$k, 
                   id_pt = det_sim_wide$i, 
-                  det = det_sim_wide[,3:6],
-                  vis_cov = time_sim_wide[,3:6],
-                  Q = rowSums(det_sim_wide[,3:6]), 
+                  det = det_sim_wide[,c("1", "2", "3", "4")],
+                  vis_cov = time_sim_wide[,c("1", "2", "3", "4")],
+                  Q = rowSums(det_sim_wide[,c("1", "2", "3", "4")]), 
                   env_var = env_var, 
                   grainsize = 1)
 
-
 ## Run mod ----
-library(cmdstanr)
 mod <- cmdstan_model("occupancy_example_redsum.stan", 
                      cpp_options = list(stan_threads = T))
-mod
-samps_8 <- mod$sample(data = stan_data, 
-                    chains = 1, 
-                    threads_per_chain = 8, 
-                    iter_warmup = 1000, 
-                    iter_sampling = 1000)
-print(samps_8$time())
 
-samps_4 <- mod$sample(data = stan_data, 
-                      chains = 1, 
-                      threads_per_chain = 4, 
-                      iter_warmup = 1000, 
-                      iter_sampling = 1000)
-print(samps_4$time())
+replicate(5, {
+    samps_8 <- mod$sample(data = stan_data, 
+                          chains = 1, 
+                          threads_per_chain = 8, 
+                          iter_warmup = 1000, 
+                          iter_sampling = 1000)
+    print(samps_8$time())
+    
+    samps_4 <- mod$sample(data = stan_data, 
+                          chains = 1, 
+                          threads_per_chain = 4, 
+                          iter_warmup = 1000, 
+                          iter_sampling = 1000)
+    print(samps_4$time())
+    
+    samps_2 <- mod$sample(data = stan_data, 
+                          chains = 1, 
+                          threads_per_chain = 2, 
+                          iter_warmup = 1000, 
+                          iter_sampling = 1000)
+    print(samps_2$time())
+    
+    samps_1 <- mod$sample(data = stan_data, 
+                          chains = 1, 
+                          threads_per_chain = 1, 
+                          iter_warmup = 1000, 
+                          iter_sampling = 1000)
+    print(samps_1$time())
+    
+    data_frame(cpu = c(1, 2, 4, 8),
+               time = c(samps_1$time()$chains$total,
+                        samps_2$time()$chains$total,
+                        samps_4$time()$chains$total,
+                        samps_8$time()$chains$total))
+}, simplify=F) %>%
+    bind_rows(., .id="run")
 
-samps_2 <- mod$sample(data = stan_data, 
-                      chains = 1, 
-                      threads_per_chain = 2, 
-                      iter_warmup = 1000, 
-                      iter_sampling = 1000)
-print(samps_2$time())
 
-samps_1 <- mod$sample(data = stan_data, 
-                      chains = 1, 
-                      threads_per_chain = 1, 
-                      iter_warmup = 1000, 
-                      iter_sampling = 1000)
-print(samps_1$time())
-
-timings <- data_frame(cpu = c(1, 2, 4, 8),
-           time = c(samps_1$time()$chains$total,
-                    samps_2$time()$chains$total,
-                    samps_4$time()$chains$total,
-                    samps_8$time()$chains$total))

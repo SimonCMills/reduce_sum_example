@@ -22,7 +22,7 @@ They are referred to at various points throughout, but see also:
 
 - [https://jsocolar.github.io/occupancyModels/](https://jsocolar.github.io/occupancyModels/) as an introduction/explanation to the model in Stan 
 
-# (Brief) model description
+# 1. (Brief) model description
 A model familiar to many ecologists is the occupancy model. They come in a lot of flavours, but, very broadly, these models are typically attempting to relate binary presence/absence to characteristics of the environment and/or species, usually using data collected from a number of different spatial locations. 
 
 Of these models a further broad subset are detection-occupancy models, which attempt to delinate observed occupancy into separate detection and occupancy components (i.e. acknowledge that the probability of observing a given species depends both on the underlying probability of presence and also how likely it is to be observed, given presence). In order to do this, two things are required: first there needs to be some form of replicated sampling, and second we need to be able to reasonably assume that if a species is observed on a single one of these replicates, it is 'present' (in some sense) on every other of the replicates. The resulting mixture of 0s and 1s then allow for us to say something about both detection and occupancy. 
@@ -44,7 +44,7 @@ $$Z_{ik} \sim bernoulli(logit^{-1}(\psi_{ik}))$$
 
 $$y_{ijk} \sim bernoulli(logit^{-1}(\theta_{ijk}) \times Z)$$
 
-where $\psi_{ik}$ is the occupancy probability, which varies according to a species-level intercept, and a species-level environmental association (where $x_i$ is the environmental variable). $\theta_{ijk}$ is the detection component, and varies according to a species-level intercept, and a species-level time of day effect. All species-level effects are simulated and modelled as normally-distributed random effects, i.e. eight hyperparameters in total.
+where $i$ indexes points, $j$ indexes visits, $k$ indexes species. $\psi_{ik}$ is the occupancy probability, which varies according to a species-level intercept, and a species-level environmental association (where $x_i$ is the environmental variable). $\theta_{ijk}$ is the detection component, and varies according to a species-level intercept, and a species-level time of day effect. All species-level effects are simulated and modelled as normally-distributed random effects, i.e. eight hyperparameters in total.
 
 Data are generated from this model in the following script:
 ```{r, message=F} 
@@ -53,15 +53,15 @@ source("simulate_data.R")
 For the timings, I'll generate 50 species across 50 sites and 4 visits (i.e. 10,000 observations in total). 
 
 Visually, the model look something like this (for nine example species):
-```{r figs, echo=F, fig.align = "center", fig.cap = "**Figure 1:** Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detection, accounting for the species' detectability. As this depends both on the species' detectibility and also a visit-level covariate (time of day), the detectibility is not a constant offset, but rather varies depending on time of day (which varies between 0 and 1). Note the variation in the environmental association, the detection offset, and the strength of the time-of-day effect on detection accross species"}
+```{r figs, echo=F, fig.align = "center", fig.cap = "**Figure 1:** Nine example species taken from the full simulation. Solid line indicates the underlying occupancy relationship, while the dashed line indicates the probability of detecting a given species on a point, estimated using the upper and lower bounds on the detection effect (at time=0 and time=1 respectively), and accounting for the species' overall detectability. Note the variation across species in the environmental association, the detection offset, and the strength of the time-of-day effect."}
 # plot
-df_sim_eg <- expand.grid(i = 1:n_site, 
+library(dplyr)
+df_sim_eg <- expand.grid(env_var = seq(-2, 2, len=50), #i = 1:n_site, 
                          j = 1:n_visit, 
                          k = 1:9,
                          time = c(0, 1)) %>%
     as_tibble %>%
-    mutate(env_var = env_var[i], 
-           psi = b0[k] + b1[k]*env_var[i], 
+    mutate(psi = b0[k] + b1[k]*env_var, 
            Z = rbinom(n(), 1, inv.logit(psi)), 
            theta = d0[k] + d1[k]*time, 
            det_sim = rbinom(n(), Z, inv.logit(theta)))
@@ -98,14 +98,14 @@ head(env_var)
 ```
 Finally, an environmental variable, that just varies between points. 
 
-# The Stan model
+# 2. The Stan model
 The Stan file is a little complicated if it's not a model you are already familiar with. The main oddity is the if-statement asking if Q==1: this just refers to the central assumption mentioned at the outset, where points that have at least one observation are treated as though the species is present (but undetected) at all other visits. The converse, where a species is never observed at a point is more complicated, because now we have to acknowledge that it might have been there all along, but never observed, and also that it might simply not be there. Again [https://jsocolar.github.io/occupancyModels/](https://jsocolar.github.io/occupancyModels/) explains this in more detail. 
 
 ```{r, comment=NA, echo=F}
 cat(readLines('occupancy_example.stan'), sep = '\n')
 ```
 
-# ```reduce_sum``` formulation
+## ```reduce_sum``` formulation
 To get the parallelisation done, we need to break up the computation such that it can be passed out to multiple workers. To do this, the model itself wrapped in ```partial_sum``` (user-written function), which will allow the full task of calculating all the log-probabilities to be broken up into chunks (the size of which are set by the grainsize argument). ```reduce_sum``` will automate the choice about how to chunk up the data, and pass these data chunks out to be computed in parallel. 
 
 ```{r, comment=NA, echo=F}
@@ -114,6 +114,7 @@ cat(readLines('occupancy_example_redsum.stan'), sep = '\n')
 
 This is largely a repetition of the previous stan model, the only difference is that the model has been shifted into the ```parallel_sum``` function block. Note that a lot of stuff has to get passed to this function: you could simplify it by doing more computation outside (e.g. transforming some parameters) and passing a reduced set of objects, but then you would be shifting more of the computation *outside* of the bit that will be run in parallel. As the parallelisation speedup would take a hit from doing this, it's better to do it this way, despite the unwieldiness of the ensuing function. 
 
+## Running the multi-threaded model
 When compiling the model, we need to specify that it is threaded (cpp_options), and then specify the threads_per_chain at the sampling step. The model is run with ```cmdstanr``` (at some point I presume multi-threading will be rolled out to ```rstan``` as well).  
 ```{r, eval=F}
 library(cmdstanr)
@@ -145,34 +146,72 @@ print(samps$time())
 
 ```
 
-# Timings 
+# 3. Timings 
 
-```{r fig2, echo=F, fig.align = "center", fig.cap = "**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). "}
-library(ggplot2)
-dat <- data.frame(cpu=c(1, 2, 4, 8), 
-                  time = c(1860.0, 801.7, 660.1, 337.7))
-dat$bc <- dat$time[1]/dat$cpu
-dat$speedup <- round(dat$time[1]/dat$time, 2)
-ggplot(dat, aes(log(cpu), log(time))) + geom_point() + geom_line() + 
-    # geom_point(data=timings2) +
-    # geom_line(data=timings2) +
-    # geom_point(data=timings3) +
-    # geom_line(data=timings3) +
+```{r fig2, echo=F, warnings=F, fig.align = "center", fig.cap = "**Figure 2:** Timings across 1, 2, 4, and 8 cores, using a simulated dataset with 50 species, 50 sites, and 4 visits (i.e. 10,000 observations in total). Model fitting was repeated 6 times each (in sequence of 8, 4, 2, 1 threads, repeated 6 times). Left hand panel presents the average speedup across runs, while the right hand panel presents each individual run, with Time on the y-axis. Speedup figure given above the points (average in the left-hand panel)."}
+dat <- readRDS("timings.rds") %>%
+    bind_rows(., data.frame(run = "6", cpu=c(1, 2, 4, 8), 
+                            time = c(1860.0, 801.7, 660.1, 337.7))) %>%
+    group_by(run) %>%
+    mutate(speedup = time[1]/time, 
+           t1_rep = time[1])
+
+dat_summ <- dat %>% group_by(cpu) %>% summarise(speedup = mean(speedup))
+dat_summ2 <- dat %>% group_by(run, cpu) %>% summarise(oneToOne = t1_rep/cpu)
+
+p1 <- ggplot(dat, aes(log(cpu), log(speedup), group=run)) + 
+    geom_point(alpha=.2) + 
+    geom_line(alpha=.2) + 
     scale_x_continuous(breaks=log(dat$cpu), labels=dat$cpu) +
-    geom_line(aes(y=log(bc)), lty=2) +
-    scale_y_continuous("Time (s)", breaks=c(6, 6.5, 7, 7.5), labels = round(exp(c(6, 6.5, 7, 7.5)), 0), 
-                       sec.axis = sec_axis(trans = ~dat$time[1]/exp(.), name = "Relative speedup", breaks = c(1, 2, 4, 6, 8))) +
-    theme(aspect.ratio=.7, panel.grid.minor = element_blank()) 
+    geom_line(aes(y=log(cpu)), lty=2) +
+    scale_y_continuous(trans="reverse", limits = c(NA, log(0.9)),
+                       name = "Relative speedup", 
+                       breaks = log(c(1, 2, 4, 8)), 
+                       labels = c(1, 2, 4, 8)) +
+    coord_equal() +
+    geom_line(data=dat_summ, aes(log(cpu), log(speedup)), inherit.aes=F) +
+    geom_point(data=dat_summ, aes(log(cpu), log(speedup)), pch=21, fill="white", size=2, inherit.aes=F) +
+    geom_text(data=dat_summ, aes(log(cpu), log(speedup), label=sprintf("%0.1f", round(speedup, 1))), inherit.aes=F, 
+               vjust=-.6, fontface="bold") +
+    theme(panel.grid.minor = element_blank()) 
 
+p2 <- ggplot(dat, aes(log(cpu), log(time), group=run)) + 
+    geom_point() + 
+    geom_line() + 
+    scale_x_continuous(breaks=log(dat$cpu), labels=dat$cpu, expand=c(.1, .1)) +
+    geom_line(data=dat_summ2, aes(y=log(oneToOne)), lty=2) +
+    scale_y_continuous("Time (s)", limits=c(NA, log(2000)),
+                       breaks = log(c(200, 400, 800, 1600)), 
+                       labels = c(200, 400, 800, 1600), expand = c(.1, .1)) +
+    coord_equal() +
+    geom_text(aes(log(cpu), log(time), label=sprintf("%0.1f", round(speedup, 1))), inherit.aes=F,
+              vjust=-.6, fontface="bold") +
+    theme(panel.grid.minor = element_blank(), 
+          strip.text=element_text(hjust=0, face="bold"), 
+          strip.background = element_blank()) +
+    facet_wrap(~paste0("Run: ", run))
+
+egg::ggarrange(p1, p2, ncol=2)
 ```
 
-Timings:
-```{r, comment=NA, echo=F}
-dat[,-3]
-```
+As you would hope, we are getting good average speedups by parallelising the model. While the dataset simulated here is fairly small, with a larger dataset, a 4.5x speedup on a chain that would otherwise take >1 week to run is not trivial at all! The speedup depends on the proportion of the model that can be placed within the ```partial_sum``` function (see [here](https://statmodeling.stat.columbia.edu/2020/05/05/easy-within-chain-parallelisation-in-stan/)). With increased model complexity, as long as the relative proportions of 'stuff in the ```partial_sum```' to 'stuff outside the ```partial_sum```' remain constant, we should expect to see similar speedups. Anecdotally this seems to be the case, and I've seen fairly equivalent speedups running these models with more complexity (e.g. more terms in the detection and occupancy components).
 
-As you would hope, we are getting good speedups by parallelising the model. While the dataset simulated here is fairly small, with a larger dataset, a 4-6x speedup on a chain that would otherwise take >1 week to run is not trivial at all! The speedup itself will also depend on the proportion of the model that can be placed within the ```partial_sum``` function (see [here](https://statmodeling.stat.columbia.edu/2020/05/05/easy-within-chain-parallelisation-in-stan/)). With increased model complexity, as long as the relative proportions of 'stuff in the ```partial_sum```' to 'stuff outside the ```partial_sum```' remain constant, we should expect to see similar speedups. Anecdotally this seems to be the case, and I've seen fairly equivalent speedups running these models with more complexity (e.g. more terms in the detection and occupancy components).
-
-For models where almost all the computation can be placed inside the ```partial_sum```, we can achieve a 1:1 speedup (in some cases, marginally better!). Given that this model has a bunch of centering of hyper-parameters outside of the main model block, it is to be expected that we should see speedups slightly below this line. 
+For models where almost all the computation can be placed inside the ```partial_sum```, we can achieve a 1:1 speedup (in some cases, marginally better!). Given that this model has a bunch of centering of hyper-parameters outside of the main model block, it is to be expected that we should see speedups slightly below this line. Some individual runs substantially exceeded the 1:1 line, which presumably arises due to a very slow 1-thread run (with the speedup then being calculated relative to this). 
 
 The other thing to mention is that when comparing speedups, it's important to give the computer a proper job to really see the speedup from parallelisation. If it only takes 30 seconds to run the model, then the speedups are all over the place (though the tendency to get faster with increasing cores is present). Initially I had been simulating 15 species at 15 sites, across 4 visits (i.e. 900 observations)- speedups were (a) not very repeatable, varying substantially between runs, and (b) the scaling didn't look great. Presumably this largely arises because the overhead paid for parallelising makes up a greater proportion of the total run time, and it's difficult to get large speed-gains on the bit that is being run in parallel. 
+
+## When to parallelise?
+Ultimately, we care about the number of effective samples per unit time. With extra cores available, we would also increase this just by running extra chains simultaneously. In this case the warmup overhead would be paid an extra time for each additional chain, unlike in the multi-threaded version, where it is just being paid for the original number of chains (assuming you put all your cores into increased threads rather than chains). The obvious question is: what speedup would you need to see to make running multiple threads better than running multiple chains? 
+
+As a rough heuristic, we can do the following calculation. In the first place we need to run multiple chains as the baseline comparison, as we ideally need multiple chains to check convergence diagnostics, so I would always run 4 chains in the first place, irrespective of how many cores are available. The question then becomes, with more cores- beyond those used by the 4 parallel chains in the first place- how should they be allocated (to threads or cores)?. A back of the envelope calculation would be that the number of post-warmup samples obtained, $n_{samp}$, in a fixed unit of time is: 
+
+$$n_{samp} = (n_{tot} \times r - n_{wu}) \times n_{core}$$
+where $n_{tot}$ is the total number of samples, modified by $r$, the rate at which samples are obtained, $n_{wu}$ is the number of warmup samples, and $n_{core}$ is the number of cores. Faster sampling due to more threads, i.e. $r > 1$, will result in more total samples, while the warmup overhead remains the same. 
+
+The difference in number of samples, as either rate or number of cores is modified is therefore:
+$$n_{diff} = (n_{tot} \times r_{diff} - n_{tot} \times p_{wu}) \times c_{diff}$$
+where both r and c are proportional increases (i.e. 4 to 8 cores would be $c_{diff}=2$, and a rate doubling would be $r_{diff}=2$). I've also rewritten the warmup as a proportion of the total number of samples. From this we can see that the answer will depend upon the speedup, $r_{diff}$, and the proportion of samples spent on warmup. If we assume you spend half of the total samples on warmup (i.e. $n_{wu}$ is half $n_{tot}$), then as long as the speedup is >1.5, increasing the number of threads over the number of cores is best. If the warmup is less than half the total samples, this speedup 'break-even-point' will increase, as increasing the number of chains is penalised less by the warmup overhead. 
+
+Multi-threading will also get diminishing returns, as the parallelisable portion of the model becomes sliced ever more ways. Thus $r_{diff}$ isn't constant, but at some point will start to plateau with increasing threads. So if the model is already on a bunch of threads, then it may become worth running additional chains rather than increasing the number of threads further. 
+
+Importantly, this is just a vague heuristic, and there are likely subtleties in the relative speed of sampling. During warmup the HMC is also adapting, which presumably means rate of sampling is slower, which would adjust this relationship further in favour of running multiple threads. This caveat aside, running this model on a dataset of this size appears to come out in favour of multi-threading up to about 4-threads, and approximately break-even at around 8-threads. Beyond this, to get more samples in a fixed time it would be best to add chains. 
