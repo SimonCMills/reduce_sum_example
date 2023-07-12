@@ -29,7 +29,7 @@ They are referred to at various points throughout, but see also:
     regression)](https://mc-stan.org/users/documentation/case-studies/reduce_sum_tutorial.html),
     which has details that aren’t included here
 
-  - <https://jsocolar.github.io/occupancyModels/> as an
+  - <https://jsocolar.github.io/marginalizedOccupancy/> as an
     introduction/explanation to the model in Stan
 
 # 1\. (Brief) model description
@@ -61,7 +61,7 @@ flavours of glm that are already documented.
 
 These models are readily fit in Stan (note though that they are slightly
 differently formulated than in JAGS/BUGS, see
-[here](https://jsocolar.github.io/occupancyModels/)).
+[here](https://jsocolar.github.io/marginalizedOccupancy/)).
 
 ## Data simulation
 
@@ -215,7 +215,7 @@ though the species is present (but undetected) at all other visits. The
 converse, where a species is never observed at a point is more
 complicated, because now we have to acknowledge that it might have been
 there all along, but never observed, and also that it might simply not
-be there. Again <https://jsocolar.github.io/occupancyModels/> explains
+be there. Again <https://jsocolar.github.io/marginalizedOccupancy/> explains
 this in more detail.
 
     data {
